@@ -46,13 +46,12 @@ bool Web_crawler::process_next_page() {
             proc_wait_sem_.release();
         }
         process_page(*opt_Link);
-        // process_page_test(*opt_Link);
     }
     else {
         ++num_threads_waiting_to_proc_;
         done = done_processing();
         if (!done) {
-            std::cout << "waiting to proc" << std::endl;
+            // std::cout << "waiting to proc" << std::endl;
             proc_wait_sem_.acquire();
             done = done_processing();
         }
@@ -71,6 +70,7 @@ void Web_crawler::process_page(const Link_t& link) {
     Page_links_t links;
     Web_page_reader reader;
     std::string url_path = url_mgr_ptr_->make_full_url(link.page_path);
+    std::cout << "-----------------> Reading page " << url_path << " depth " << link.depth << std::endl;
     Read_Results_t results = reader.read_page(url_path);
     if (results.http_code == http_ok) {
         links = extract_page_links(results.content, link.depth + 1);
@@ -100,14 +100,17 @@ Page_links_t Web_crawler::extract_page_links(const Page_content_t& content, int 
             if (end_pos == std::string::npos) break; // Malformed
             if (end_pos > begin_pos) {
                 std::string page_path{content, begin_pos, end_pos-begin_pos};
+                // std::cout << "<<<<<<<<<<<<<<<< Found page path: " << page_path << std::endl;
                 Deconstructed_url decon_url = Url_mgr::deconstruct_url(page_path, true);
-                std::cout << "Found page link: " << page_path << std::endl;
-                if (decon_url.domain.empty() and decon_url.path.empty() and decon_url.page.empty()) {
-                    std::cout << "************ Page Path Not Valid ****************" << std::endl;
+                if ((!decon_url.path.empty() or !decon_url.page.empty())
+                    and url_mgr_ptr_->is_child_page(decon_url.domain, decon_url.path)) {
+                    Url_t normalized_path = Url_mgr::make_page_path(decon_url.path, decon_url.page);
+                    std::cout << ">>>>>>>>>>>>>>>>>> Link was added: " << normalized_path << std::endl;
+                    // links.push_back(Link_t{normalized_path, depth});
                 }
-                // else if ()
-                // std::cout << "Decon url: " << decon_url.domain <<
-                //  ", " << decon_url.path << ", " << decon_url.page << std::endl;
+                else {
+                    std::cout << "!!!!!!!!!!!!!!!!!! Page path not added " << page_path << std::endl;
+                }
             }
         }
         begin_pos = end_pos + 1;

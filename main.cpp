@@ -35,10 +35,16 @@ void url_deconstruction_tests() {
     test_url_deconstruction("https://gcc.gnu.org/install/foo/bar/index.html");
     test_url_deconstruction("https://en.cppreference.com/w");
     test_url_deconstruction("https://en.cppreference.com/w/cpp");
-    test_url_deconstruction("https://gcc.gnu.org/./index.html");
     test_url_deconstruction("index.html");
     test_url_deconstruction("./index.html");
     test_url_deconstruction("https://foo-bad");
+    test_url_deconstruction("/foo/bar");
+    test_url_deconstruction("/foo/bar/");
+    test_url_deconstruction("/foo/bar.html");
+    test_url_deconstruction("foo/bar");
+    test_url_deconstruction("foo/");
+    test_url_deconstruction("foo");
+    test_url_deconstruction("foo/bar.html");
     test_url_deconstruction("ftps://en.cppreference.com/foo.bar");
     test_url_deconstruction("https://foo-bad");
 }
@@ -79,21 +85,18 @@ void perform_crawler_test(const Url_t& site_url) {
 }
 
 void test_web_crawler() {
-    perform_crawler_test("https://gcc.gnu.org");
-    perform_crawler_test("https://gcc.gnu.org/onlinedocs/gcc/");
-    perform_crawler_test("https://gcc.gnu.org/install");
-    perform_crawler_test("https://gcc.gnu.org/install/");
-    perform_crawler_test("https://gcc.gnu.org/install/index.html");
-    perform_crawler_test("https://en.cppreference.com/w");
-    perform_crawler_test("https://en.cppreference.com/w/cpp");
-    perform_crawler_test("https://en.cppreference.com/w/cpp/");
-    perform_crawler_test("https://foo-bad");
+    // perform_crawler_test("https://gcc.gnu.org");
+    // perform_crawler_test("https://gcc.gnu.org/install/");
+    // perform_crawler_test("https://cplusplus.com/reference/string/basic_string/");
+    // perform_crawler_test("https://gcc.gnu.org/onlinedocs/gcc/");
+    // perform_crawler_test("https://www.iana.org");
+    perform_crawler_test("https://www.braverangelscentraltexas.org/alliance.html");
 }
 
 int main() {
-    // url_deconstruction_tests();
+    url_deconstruction_tests();
     // test_page_reader(site_url);
-    test_web_crawler();
+    // test_web_crawler();
     return 0;
 }
 
