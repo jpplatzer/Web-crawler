@@ -21,8 +21,16 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 template <class Fcn_t>
 class Thread_pool {
 public:
+    /// @brief Thread pool runs a shared function in the pool's threads
+    /// @param fcn [in] Function or functor that runs concurrently in the pool's threads. 
+    /// The function signature is bool fcn() or bool operator()(). 
+    /// The threads continue running the function until it returns false. 
+    /// The Thread_pool_ftor class below provide a working example functor.
+    /// @param num_threads [in] The number of threads concurrently running in the pool
     Thread_pool(Fcn_t fcn, int num_threads) 
         : fcn_(fcn), num_threads_(num_threads), running_statuses_(num_threads) {}
+    /// @brief Run the shared function specified in the ctor until the function returns false.
+    /// @throws Can throw a std::system_error when a system error occurs while creating the pool's threads.
     void run();
 
 private:
@@ -92,6 +100,10 @@ template <class Obj_t>
 class Thread_pool_ftor {
 public:
     using Fcn_p = bool (Obj_t::*)();
+    /// @brief Functor for encapsulating calls to an object's method that is invoked by the threads in the thread pool.
+    /// @param fcn_p The object's method to be repeatedly called by the pool's thread.
+    /// The method must have the signature bool method()
+    /// @param obj_p Pointer to the object whose method will be called
     Thread_pool_ftor(Fcn_p fcn_p, Obj_t* obj_p) : fcn_p_(fcn_p), obj_p_(obj_p) {}
     bool operator() () {
         return (obj_p_->*fcn_p_)();
