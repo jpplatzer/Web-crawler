@@ -11,11 +11,56 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
  ***/
 
 #include <iostream>
+#include <algorithm>
 #include <unordered_map>
-#include <mutex>
+#include <web_page_reader.h>
 #include <url_mgr.h>
 #include <web_crawler.h>
 
+
+void test_url_deconstruction(const Url_t& url) {
+    std::cout << "test_url_deconstruction for " << url << std::endl;
+    Deconstructed_url decon_url = Url_mgr::deconstruct_url(url, true);
+    std::cout << "domain: " << decon_url.domain <<    
+        ", path: " << decon_url.path <<    
+        ", page: " << decon_url.page  << 
+        "\n------------------------------------------------------------------------------" <<
+        std::endl;
+}
+
+void url_deconstruction_tests() {
+    test_url_deconstruction("https://gcc.gnu.org");
+    test_url_deconstruction("https://gcc.gnu.org/index.html");
+    test_url_deconstruction("https://gcc.gnu.org/onlinedocs/gcc/");
+    test_url_deconstruction("https://gcc.gnu.org/install");
+    test_url_deconstruction("https://gcc.gnu.org/install/");
+    test_url_deconstruction("https://gcc.gnu.org/install/index.html");
+    test_url_deconstruction("https://gcc.gnu.org/install/foo/bar/index.html");
+    test_url_deconstruction("https://en.cppreference.com/w");
+    test_url_deconstruction("https://en.cppreference.com/w/cpp");
+    test_url_deconstruction("index.html");
+    test_url_deconstruction("./index.html");
+    test_url_deconstruction("/foo/bar");
+    test_url_deconstruction("/foo/bar/");
+    test_url_deconstruction("/foo/bar.html");
+    test_url_deconstruction("foo/bar");
+    test_url_deconstruction("foo/");
+    test_url_deconstruction("foo");
+    test_url_deconstruction("foo/bar.html");
+    test_url_deconstruction("ftps://en.cppreference.com/foo.bar");
+    test_url_deconstruction("https://foo-bad");
+}
+
+
+void test_page_reader(const Url_t& url) {
+    Web_page_reader reader;
+    Read_Results_t results = reader.read_page(url);
+    std::cout << "Page reader for " << url <<
+        ", status " << results.http_code << 
+        ", size " << results.content.size() << 
+        // ", content:\n" << results.content << 
+        std::endl;
+}
 
 class Example_content_processor : public Page_content_processor {
 public:
@@ -23,11 +68,9 @@ public:
         const Url_t& site_domain, int http_code, int depth,
         const Page_paths_t& page_links, const Page_content_t& page_content) override;
     void final() override {
-        is_done_ = true;
-        std::cout << "Done processing the site's pages" << std::endl;
+        std::cout << "done processing pages" << std::endl;
     }
     void print_site_info();
-
 private:
     struct Page_info {
         int http_code;
@@ -36,8 +79,6 @@ private:
         int num_links;
         int num_backlinks;
     };
-    bool is_done_{false};
-    std::mutex proc_mutex_;
     using Page_info_map = std::unordered_map<Url_t, Page_info>;
     Page_info_map page_info_map_;
 };
@@ -45,8 +86,7 @@ private:
 void Example_content_processor::process_page_content(const Url_t& page_url, 
     const Url_t& site_domain, int http_code, int depth,
     const Page_paths_t& page_links, const Page_content_t& page_content) {
-    std::lock_guard lock(proc_mutex_);
-    std::cout << "Process page_content for: " << page_url <<
+    std::cout << "process_page_content for " << page_url <<
         " HTTP code " << http_code <<
         " has " << page_content.size() << " bytes" <<
         " and has " << page_links.size() << " links " << std::endl;
@@ -64,10 +104,6 @@ void Example_content_processor::process_page_content(const Url_t& page_url,
 }
 
 void Example_content_processor::print_site_info() {
-    if (!is_done_) {
-        std::cout << "Site crawling is still in progress..." << std::endl;
-        return;
-    }
     for (auto info: page_info_map_) {
         std::cout << "Page: " << info.first <<
             ", code: " << info.second.http_code <<
@@ -78,37 +114,32 @@ void Example_content_processor::print_site_info() {
     }
 }
 
-bool perform_crawler_test(const Url_t& site_url, int num_threads, int max_depth) {
+void perform_crawler_test(const Url_t& site_url) {
     std::cout << "Peform web crawler test for: " << site_url << std::endl;
     Example_content_processor cp;
-    Web_crawler web_crawler(num_threads, max_depth);
+    Web_crawler web_crawler(4, 3);
     Crawl_result_t result = web_crawler.crawl(site_url, &cp);
     if (!result) {
         std::cout << "Error crawling website: " << result.error().err_text << std::endl;
-        return false;
     }
     else {
         cp.print_site_info();
     }
-    return true;
 }
 
-void usage() {
-    std::cout << "web-crawler SITE_URL NUM_THREADS [MAX_DEPTH]"  << std::endl;
-    std::cout << "E.g. web-crawler \"https://gcc.gnu.org/install/\" 5 3"  << std::endl;
+void test_web_crawler() {
+    // perform_crawler_test("https://gcc.gnu.org");
+    perform_crawler_test("https://gcc.gnu.org/install/");
+    // perform_crawler_test("https://cplusplus.com/reference/string/basic_string/");
+    // perform_crawler_test("https://gcc.gnu.org/onlinedocs/gcc/");
+    // perform_crawler_test("https://www.iana.org");
+    // perform_crawler_test("https://www.braverangelscentraltexas.org/alliance.html");
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        usage();
-        return 1;
-    }
-    // In production code, do more error checking on the command line args. 
-    // But, this is a demo project.
-    const char* site_url = argv[1];
-    const int num_threads = std::stoi(argv[2]);
-    const int max_depth = argc >= 4 ? std::stoi(argv[3])
-        : Web_crawler::unlimited_depth;
-    return perform_crawler_test(site_url, num_threads, max_depth);
+int main() {
+    // url_deconstruction_tests();
+    // test_page_reader(site_url);
+    test_web_crawler();
+    return 0;
 }
 

@@ -21,11 +21,21 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #include <url_mgr.h>
 
 class Page_content_processor {
-public:
+public: 
+    /// @brief Called after each page is read. 
+    /// This method can be called concurrently by multiple threads.
+    /// It is responsible for implementing any necessary concurrency protections. 
+    /// @param page_url [in] The page's URL
+    /// @param site_domain [in] The site's domain
+    /// @param http_code [in] The HTTP code returned in the read response
+    /// @param depth [in] The page's depth in the site
+    /// @param page_paths [in] The paths for the links found on this page
+    /// @param page_content [in] The page's complete content
     virtual void process_page_content(const Url_t& page_url, 
         const Url_t& site_domain, int http_code, int depth,
         const Page_paths_t& page_paths, const Page_content_t& page_content) = 0;
 
+    /// @brief Called after crawling has completed
     virtual void final() = 0;
 };
 
@@ -45,12 +55,19 @@ class Web_crawler
 {
 public:
     static const int unlimited_depth = INT_LEAST32_MAX;
+    /// @brief Multi-threaded website crawler
+    /// @param num_treads [in] Number of crawling threads
+    /// @param max_depth [in] Maximum crawling depth
     Web_crawler(int num_treads, int max_depth = unlimited_depth) :
         num_treads_(num_treads), max_depth_(max_depth), 
         thread_pool_(
             Thread_pool_ftor_t{&Web_crawler::process_next_page, this}, 
             num_treads) {}
 
+    /// @brief Crawl the page and its children specified by the URL
+    /// @param site_url [in] Site URL to crawl
+    /// @param page_processor_ptr [in] Customizable page processor
+    /// @return Success or error result
     Crawl_result_t crawl(const Url_t& site_url, 
         Page_content_processor* page_processor_ptr);
 
@@ -73,9 +90,6 @@ private:
     void process_page(const Page_path_t& path);
     Page_paths_t extract_page_paths(const Page_content_t& content, 
         const Page_path_t& parent_path);
-
-    // Simple test of the concurrent page processing logic
-    void process_page_test(const Page_path_t& path);
 };
 
 
