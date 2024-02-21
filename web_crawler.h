@@ -22,8 +22,9 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 class Page_content_processor {
 public:
-    virtual void process_page_content(const Url_t& page_url, int http_code,
-        const Page_links_t& page_links, const Page_content_t& page_content) = 0;
+    virtual void process_page_content(const Url_t& page_url, 
+        const Url_t& site_domain, int http_code, int depth,
+        const Page_paths_t& page_paths, const Page_content_t& page_content) = 0;
 
     virtual void final() = 0;
 };
@@ -69,11 +70,12 @@ private:
         return num_threads_waiting_to_proc_ >= num_treads_;
     }
     bool process_next_page();
-    void process_page(const Link_t& link);
-    Page_links_t extract_page_links(const Page_content_t& content, int depth);
+    void process_page(const Page_path_t& path);
+    Page_paths_t extract_page_paths(const Page_content_t& content, 
+        const Page_path_t& parent_path);
 
     // Simple test of the concurrent page processing logic
-    void process_page_test(const Link_t& link);
+    void process_page_test(const Page_path_t& path);
 };
 
 

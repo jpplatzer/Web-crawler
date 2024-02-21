@@ -12,8 +12,9 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #include <iostream>
 #include <algorithm>
-#include <regex>
+#include <unordered_map>
 #include <web_page_reader.h>
+#include <url_mgr.h>
 #include <web_crawler.h>
 
 
@@ -22,7 +23,9 @@ void test_url_deconstruction(const Url_t& url) {
     Deconstructed_url decon_url = Url_mgr::deconstruct_url(url, true);
     std::cout << "domain: " << decon_url.domain <<    
         ", path: " << decon_url.path <<    
-        ", page: " << decon_url.page << std::endl;
+        ", page: " << decon_url.page  << 
+        "\n------------------------------------------------------------------------------" <<
+        std::endl;
 }
 
 void url_deconstruction_tests() {
@@ -37,7 +40,6 @@ void url_deconstruction_tests() {
     test_url_deconstruction("https://en.cppreference.com/w/cpp");
     test_url_deconstruction("index.html");
     test_url_deconstruction("./index.html");
-    test_url_deconstruction("https://foo-bad");
     test_url_deconstruction("/foo/bar");
     test_url_deconstruction("/foo/bar/");
     test_url_deconstruction("/foo/bar.html");
@@ -60,43 +62,84 @@ void test_page_reader(const Url_t& url) {
         std::endl;
 }
 
-class Dummy_content_processor : public Page_content_processor {
+class Example_content_processor : public Page_content_processor {
 public:
-    void process_page_content(const Url_t& page_url, int http_code,
-        const Page_links_t& page_links, const Page_content_t& page_content) override {
-        std::cout << "process_page_content for " << page_url <<
-            " HTTP code " << http_code <<
-            " has " << page_content.size() << " bytes" <<
-            " and has " << page_links.size() << " links " << std::endl;
-    }
+    void process_page_content(const Url_t& page_url, 
+        const Url_t& site_domain, int http_code, int depth,
+        const Page_paths_t& page_links, const Page_content_t& page_content) override;
     void final() override {
         std::cout << "done processing pages" << std::endl;
     }
+    void print_site_info();
+private:
+    struct Page_info {
+        int http_code;
+        size_t size;
+        int depth;
+        int num_links;
+        int num_backlinks;
+    };
+    using Page_info_map = std::unordered_map<Url_t, Page_info>;
+    Page_info_map page_info_map_;
 };
+
+void Example_content_processor::process_page_content(const Url_t& page_url, 
+    const Url_t& site_domain, int http_code, int depth,
+    const Page_paths_t& page_links, const Page_content_t& page_content) {
+    std::cout << "process_page_content for " << page_url <<
+        " HTTP code " << http_code <<
+        " has " << page_content.size() << " bytes" <<
+        " and has " << page_links.size() << " links " << std::endl;
+    page_info_map_.emplace(page_url, 
+        Page_info{http_code, page_content.size(), depth, 
+            static_cast<int>(page_links.size()), 1});
+    for (auto page_link: page_links) {
+        Url_t full_url = Url_mgr::make_full_url(site_domain, 
+            page_link.path, page_link.page);
+        auto iter = page_info_map_.find(full_url);
+        if (iter != page_info_map_.end()) {
+            ++iter->second.num_backlinks;
+        }
+    }
+}
+
+void Example_content_processor::print_site_info() {
+    for (auto info: page_info_map_) {
+        std::cout << "Page: " << info.first <<
+            ", code: " << info.second.http_code <<
+            ", size: " << info.second.size <<
+            ", depth: " << info.second.depth <<
+            ", links: " << info.second.num_links <<
+            ", backlinks: " << info.second.num_backlinks << std::endl;
+    }
+}
 
 void perform_crawler_test(const Url_t& site_url) {
     std::cout << "Peform web crawler test for: " << site_url << std::endl;
-    Dummy_content_processor dcp;
-    Web_crawler web_crawler(4);
-    Crawl_result_t result = web_crawler.crawl(site_url, &dcp);
+    Example_content_processor cp;
+    Web_crawler web_crawler(4, 3);
+    Crawl_result_t result = web_crawler.crawl(site_url, &cp);
     if (!result) {
         std::cout << "Error crawling website: " << result.error().err_text << std::endl;
+    }
+    else {
+        cp.print_site_info();
     }
 }
 
 void test_web_crawler() {
     // perform_crawler_test("https://gcc.gnu.org");
-    // perform_crawler_test("https://gcc.gnu.org/install/");
+    perform_crawler_test("https://gcc.gnu.org/install/");
     // perform_crawler_test("https://cplusplus.com/reference/string/basic_string/");
     // perform_crawler_test("https://gcc.gnu.org/onlinedocs/gcc/");
     // perform_crawler_test("https://www.iana.org");
-    perform_crawler_test("https://www.braverangelscentraltexas.org/alliance.html");
+    // perform_crawler_test("https://www.braverangelscentraltexas.org/alliance.html");
 }
 
 int main() {
-    url_deconstruction_tests();
+    // url_deconstruction_tests();
     // test_page_reader(site_url);
-    // test_web_crawler();
+    test_web_crawler();
     return 0;
 }
 

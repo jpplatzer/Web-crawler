@@ -19,14 +19,15 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 using Url_t = std::string;
 
-struct Link_t {
-    Url_t page_path;
+struct Page_path_t {
+    Url_t path;
+    Url_t page;
     int depth;
 };
 
 using Page_content_t = std::string;
-using Page_links_t = std::vector<Link_t>;
-using Opt_Link_t = std::optional<Link_t>;
+using Page_paths_t = std::vector<Page_path_t>;
+using Opt_page_path_t = std::optional<Page_path_t>;
 
 // Supported HTTP codes
 enum Http_code { 

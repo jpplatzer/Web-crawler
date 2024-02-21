@@ -12,7 +12,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #pragma once
 
-#include <unordered_map>
+#include <unordered_set>
 #include <regex>
 #include <list>
 #include <mutex>
@@ -26,24 +26,34 @@ struct Deconstructed_url {
 
 class Url_mgr {
 public:
-    static Deconstructed_url deconstruct_url(const Url_t& url, 
-        bool allow_page_link_only = false);
-    static std::string make_page_path(const std::string& url_path, 
-        const std::string& url_page);
     Url_mgr(const Deconstructed_url& decon_url);
-    void update_page_links(const Page_links_t& page_links);
-    Opt_Link_t pop_new_link();
-    int num_new_links();
-    std::string make_full_url(const std::string& page_path) const {
-        return decon_url_.domain + page_path;
+    static Deconstructed_url deconstruct_url(const Url_t& url, 
+        bool allow_page_path_only = false);
+    static Url_t make_page_path(const std::string& url_path, 
+        const std::string& url_page);
+    static Url_t make_full_url(const Url_t& site_domain, 
+        const Url_t& url_path, const Url_t& url_page);
+    const Url_t& site_domain() const {
+        return decon_url_.domain;
     }
-    bool is_child_page(const std::string& domain, const std::string& path) const;
-
+    Url_t make_full_url(const Page_path_t& path) const;
+    Page_paths_t extract_page_paths(const Page_content_t& content, 
+        const Page_path_t& parent_path) const;
+    void update_page_paths(const Page_paths_t& page_paths);
+    Opt_page_path_t pop_new_path();
+    int num_new_paths();
 private:
     const Deconstructed_url decon_url_;
     std::mutex mgr_mutex_;
-    using Url_map_t = std::unordered_map<Url_t, int>;
-    Url_map_t existing_links_;
-    std::list<Link_t> new_links_;
+    using Url_set_t = std::unordered_set<Url_t>;
+    Url_set_t existing_paths_;
+    std::list<Page_path_t> new_paths_;
+
+    Url_t make_full_url_path(const Url_t& parents_path, 
+        const Url_t& links_path) const;
+    Opt_page_path_t make_child_page_path(const Url_t& url, 
+        const Page_path_t& parents_page) const;
+    bool is_child_page(const Url_t& links_domain,
+        const Url_t& links_url_path) const;
 };
 

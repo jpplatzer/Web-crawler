@@ -38,9 +38,9 @@ Crawl_result_t Web_crawler::crawl(const Url_t& site_url,
 // It performs multi-threaded coordination of page processing.
 bool Web_crawler::process_next_page() {
     bool done = false;
-    Opt_Link_t opt_Link = url_mgr_ptr_->pop_new_link();
+    Opt_page_path_t opt_Link = url_mgr_ptr_->pop_new_path();
     if (opt_Link) {
-        if (url_mgr_ptr_->num_new_links() > 0 && 
+        if (url_mgr_ptr_->num_new_paths() > 0 && 
             num_threads_waiting_to_proc_ > 0) { 
             // More work to do. Release waiting threads to do it.
             proc_wait_sem_.release();
@@ -66,56 +66,21 @@ bool Web_crawler::process_next_page() {
     return !done;
 }
 
-void Web_crawler::process_page(const Link_t& link) {
-    Page_links_t links;
+void Web_crawler::process_page(const Page_path_t& path) {
+    Page_paths_t paths;
     Web_page_reader reader;
-    std::string url_path = url_mgr_ptr_->make_full_url(link.page_path);
-    std::cout << "-----------------> Reading page " << url_path << " depth " << link.depth << std::endl;
+    std::string url_path = url_mgr_ptr_->make_full_url(path);
+    // std::cout << "-----------------> Reading page " << url_path << " depth " << path.depth << std::endl;
     Read_Results_t results = reader.read_page(url_path);
     if (results.http_code == http_ok) {
-        links = extract_page_links(results.content, link.depth + 1);
-        url_mgr_ptr_->update_page_links(links);
+        paths = url_mgr_ptr_->extract_page_paths(results.content, path);
     }
-    if (link.depth < max_depth_ and !links.empty()) {
-        url_mgr_ptr_->update_page_links(links);        
+    if (path.depth < max_depth_ and !paths.empty()) {
+        url_mgr_ptr_->update_page_paths(paths);        
     }
-    page_proc_ptr_->process_page_content(url_path, results.http_code, links, results.content);
+    page_proc_ptr_->process_page_content(url_path, url_mgr_ptr_->site_domain(),
+        results.http_code, path.depth, paths, results.content);
 }
 
-Page_links_t Web_crawler::extract_page_links(const Page_content_t& content, int depth) {
-    Page_links_t links;
-    // Use string search to find hrefs instead of regex because regex is painfully slow for large docs
-    size_t begin_pos{0}, end_pos{0};
-    for (;;) {
-        begin_pos = content.find("<a", begin_pos);
-        if (begin_pos == std::string::npos) break;
-        end_pos = content.find(">", begin_pos);
-        if (end_pos == std::string::npos) break;  // Malformed
-        begin_pos = content.find("href", begin_pos);
-        if (begin_pos != std::string::npos and begin_pos < end_pos) {
-            begin_pos = content.find("\"", begin_pos);
-            if (begin_pos == std::string::npos or begin_pos > end_pos) break; // Malformed
-            ++begin_pos;
-            end_pos = content.find_first_of("\"#", begin_pos);
-            if (end_pos == std::string::npos) break; // Malformed
-            if (end_pos > begin_pos) {
-                std::string page_path{content, begin_pos, end_pos-begin_pos};
-                // std::cout << "<<<<<<<<<<<<<<<< Found page path: " << page_path << std::endl;
-                Deconstructed_url decon_url = Url_mgr::deconstruct_url(page_path, true);
-                if ((!decon_url.path.empty() or !decon_url.page.empty())
-                    and url_mgr_ptr_->is_child_page(decon_url.domain, decon_url.path)) {
-                    Url_t normalized_path = Url_mgr::make_page_path(decon_url.path, decon_url.page);
-                    std::cout << ">>>>>>>>>>>>>>>>>> Link was added: " << normalized_path << std::endl;
-                    // links.push_back(Link_t{normalized_path, depth});
-                }
-                else {
-                    std::cout << "!!!!!!!!!!!!!!!!!! Page path not added " << page_path << std::endl;
-                }
-            }
-        }
-        begin_pos = end_pos + 1;
-    }
-    return links;
-}
 
 
