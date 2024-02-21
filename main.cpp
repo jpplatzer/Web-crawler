@@ -109,6 +109,6 @@ int main(int argc, char *argv[]) {
     const int num_threads = std::stoi(argv[2]);
     const int max_depth = argc >= 4 ? std::stoi(argv[3])
         : Web_crawler::unlimited_depth;
-    return perform_crawler_test(site_url, num_threads, max_depth);
+    return perform_crawler_test(site_url, num_threads, max_depth) ? 0 : 1;
 }
 
