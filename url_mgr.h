@@ -49,10 +49,10 @@ private:
     Url_set_t existing_paths_;
     std::list<Page_path_t> new_paths_;
 
-    Url_t make_full_url_path(const Url_t& parents_path, 
-        const Url_t& links_path) const;
-    Opt_page_path_t make_child_page_path(const Url_t& url, 
+    Opt_page_path_t make_child_path_from_link(const Url_t& url, 
         const Page_path_t& parents_page) const;
+    Url_t make_child_path_from_links_path(const Url_t& links_path,
+        const Url_t& parents_path) const;
     bool is_child_page(const Url_t& links_domain,
         const Url_t& links_url_path) const;
 };

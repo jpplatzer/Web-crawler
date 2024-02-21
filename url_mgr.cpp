@@ -66,15 +66,6 @@ std::string Url_mgr::make_page_path(const std::string& url_path, const std::stri
         url_page;
 }
 
-Url_t Url_mgr::make_full_url_path(const Url_t& parents_path, const Url_t& links_path) const {
-     Url_t url_path = links_path.empty() ? parents_path
-        : links_path.front() == '/' ? links_path
-            : parents_path + 
-              ((!parents_path.empty() and parents_path.back() != '/') ? "/" : "") + 
-              links_path;
-    return url_path;
-}
-
 Url_t Url_mgr::make_full_url(const Url_t& site_domain, 
     const Url_t& url_path, const Url_t& url_page) {
     return site_domain + make_page_path(url_path, url_page);
@@ -84,25 +75,39 @@ Url_t Url_mgr::make_full_url(const Page_path_t& page_path) const {
     return make_full_url(decon_url_.domain, page_path.path, page_path.page);
 }
 
-Opt_page_path_t Url_mgr::make_child_page_path(const Url_t& url, 
+Opt_page_path_t Url_mgr::make_child_path_from_link(const Url_t& url, 
     const Page_path_t& parents_page) const {    
     Opt_page_path_t opt_page_path;           
     Deconstructed_url decon_url = Url_mgr::deconstruct_url(url, true);
     if (!decon_url.path.empty() || !decon_url.page.empty()) {
-        Url_t full_url_path = make_full_url_path(parents_page.path, decon_url.path);
-        if (is_child_page(decon_url.domain, full_url_path)) {
-            opt_page_path = Page_path_t{full_url_path, decon_url.page, parents_page.depth + 1};
+        Url_t childs_path = make_child_path_from_links_path(decon_url.path, parents_page.path);
+        if (is_child_page(decon_url.domain, childs_path)) {
+            opt_page_path = Page_path_t{childs_path, decon_url.page, parents_page.depth + 1};
         }
     }
     return opt_page_path;
 }
 
+Url_t Url_mgr::make_child_path_from_links_path(const Url_t& links_path,
+    const Url_t& parents_path) const {
+    Url_t url_path = links_path.empty() ? parents_path
+        : links_path.front() == '/' ? links_path
+            : parents_path + 
+              ((!parents_path.empty() and parents_path.back() != '/') ? "/" : "") + 
+              links_path;
+    return url_path;
+}
+
 bool Url_mgr::is_child_page(const Url_t& links_domain, const Url_t& links_url_path) const {
-    bool is_child = ((links_domain.empty() || links_domain == decon_url_.domain) and
-        (decon_url_.path.empty() || 
+    bool is_child = (
+        // The link has no domain or they match and
+        (links_domain.empty() || links_domain == decon_url_.domain) and
+        // The site has no URL path or
+        (decon_url_.path.empty() or 
+        // The link's URL path is the same or a superset of the site's URL path
             (links_url_path.find(decon_url_.path) == 0 and
-                (links_url_path.size() == decon_url_.path.size() || 
-                decon_url_.path.back() == '/' ||
+                (links_url_path.size() == decon_url_.path.size() or 
+                decon_url_.path.back() == '/' or
                 links_url_path[decon_url_.path.size()] == '/'))));
     return is_child;
 }
@@ -127,7 +132,7 @@ Page_paths_t Url_mgr::extract_page_paths(const Page_content_t& content,
             if (end_pos > begin_pos) {
                 Url_t url{content, begin_pos, end_pos-begin_pos};
                 // std::cout << "Found links url: " << url << std::endl;
-                Opt_page_path_t opt_path = make_child_page_path(url, parent_path);
+                Opt_page_path_t opt_path = make_child_path_from_link(url, parent_path);
                 if (opt_path) {
                     paths.push_back(*opt_path);
                     // std::cout << ">>>>>>>>>>>>>>>>>> Adding links path: " << opt_path->path <<
