@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
+#include <thread>
 #include <url_mgr.h>
 #include <web_crawler.h>
 
@@ -94,8 +95,13 @@ bool perform_crawler_test(const Url_t& site_url, int num_threads, int max_depth)
 }
 
 void usage() {
-    std::cout << "web-crawler SITE_URL NUM_THREADS [MAX_DEPTH]"  << std::endl;
-    std::cout << "E.g. web-crawler \"https://gcc.gnu.org/install/\" 5 3"  << std::endl;
+    std::cout << "Multi-threaded crawler that crawls and processes the pages on the " << 
+        "specified site and its children.\n"  << std::endl;
+    std::cout << "Usage: web-crawler SITE_URL NUM_THREADS [MAX_DEPTH]"  << std::endl;
+    std::cout << "E.g.:  web-crawler \"https://gcc.gnu.org/install/\" 5 3\n"  << std::endl;
+    std::cout << "This platform supports " << 
+        std::thread::hardware_concurrency() << " concurrent threads" << std::endl;
+    std::cout << "See: include/thread_pool.h for the thread management\n"  << std::endl;
 }
 
 int main(int argc, char *argv[]) {

@@ -104,5 +104,9 @@ depend: $(MAIN_SRC)
 
 
 # DO NOT DELETE THIS LINE -- make depend needs it
-
-main.o: ./include/thread_pool.h
+main.o: ./url_mgr.h ./web_common.h ./web_crawler.h ./include/thread_pool.h
+web_crawler.o: ./web_crawler.h ./include/thread_pool.h ./web_common.h
+web_crawler.o: ./url_mgr.h ./web_page_reader.h
+web_page_reader.o: ./web_page_reader.h ./web_common.h
+web_page_reader.o: ./include/common_macros.h
+url_mgr.o: ./url_mgr.h ./web_common.h
