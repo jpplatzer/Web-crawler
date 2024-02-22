@@ -43,11 +43,15 @@ LFLAGS = -L/usr/lib/x86_64-linux-gnu/
 # LIBS = -lcurl -lssl -lcrypto 
 # UTEST_LIBS = -lgtest -lpthread -lcurl -lssl -lcrypto 
 LIBS = -lcurl
+UTEST_LIBS = -lgtest -lpthread
+
 
 # build binaries in a BIN directory
 BINDIR=bin/
 
-MAIN_SRC = main.cpp web_crawler.cpp web_page_reader.cpp url_mgr.cpp
+SRC_CMN = web_crawler.cpp url_mgr.cpp
+MAIN_SRC = main.cpp web_page_reader.cpp
+UTESTS_SRC = test/main_utests.cpp test/thread_pool_utests.cpp
 
 # define the CPP object files
 #
@@ -60,11 +64,15 @@ MAIN_SRC = main.cpp web_crawler.cpp web_page_reader.cpp url_mgr.cpp
 # https://stackoverflow.com/questions/5173611/prepending-a-path-on-make
 # MAIN_OBJS = $(MAIN_SRC:%.c=$(BINDIR)%.o) $(SRC_CMN:%.c=$(BINDIR)%.o)
 # MAIN_OBJS = $(MAIN_SRC:%.c=$(BINDIR)%.o)
-MAIN_OBJS = $(MAIN_SRC:%.cpp=$(BINDIR)%.o)
+MAIN_OBJS = $(MAIN_SRC:%.cpp=$(BINDIR)%.o) $(SRC_CMN:%.cpp=$(BINDIR)%.o)
+UTESTS_OBJS = $(UTESTS_SRC:%.cpp=$(BINDIR)%.o)
 
 # define the executable file
 MAIN = web-crawler
 BIN_MAIN=$(addprefix $(BINDIR),$(MAIN))
+
+UTESTS = utest
+BIN_UTESTS=$(addprefix $(BINDIR),$(UTESTS))
 
 #
 # The following part of the makefile is generic; it can be used to
@@ -74,17 +82,24 @@ BIN_MAIN=$(addprefix $(BINDIR),$(MAIN))
 
 .PHONY: depend clean
 
-all: pre-build $(MAIN)
+all: pre-build $(MAIN) $(UTESTS)
 	@echo  The test has been compiled
 
 pre-build: 
-	mkdir -p $(BINDIR)
+	mkdir -p $(BINDIR) $(BINDIR)utests
 
 $(MAIN): $(BIN_MAIN)
-	@echo  Built the test
+	@echo  Built web-crawler
+
+$(UTESTS): $(BIN_UTESTS)
+	@echo  Built web-crawler unit tests
 
 $(BIN_MAIN): $(MAIN_OBJS)
 	$(CXX) $(CPPFLAGS) -o $(BIN_MAIN) $(MAIN_OBJS) $(LFLAGS) $(LIBS)
+
+$(BIN_UTESTS): $(UTESTS_OBJS)
+	$(CXX) $(CPPFLAGS) -o $(BIN_UTESTS) $(UTESTS_OBJS) $(LFLAGS) $(UTEST_LIBS)
+
 
 # this is a suffix replacement rule for building .o's from .c's
 # it uses automatic variables $<: the name of the prerequisite of
@@ -97,7 +112,7 @@ $(BINDIR)%.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(INCLUDES) $(SYSINCLUDES) -c $<  -o $@
 
 clean:
-	$(RM) $(BINDIR)*.o $(BIN_MAIN)
+	$(RM) $(BINDIR)*.o $(BIN_MAIN) $(BIN_UTESTS)
 
 depend: $(MAIN_SRC)
 	makedepend $(INCLUDES) $^
