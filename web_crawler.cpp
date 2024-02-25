@@ -24,7 +24,9 @@ Crawl_result_t Web_crawler::crawl(const Url_t& site_url,
     }
     url_mgr_ptr_ = std::make_shared<Url_mgr>(decon_url);
     try {
-        thread_pool_.run();
+        thread_pool_.run(
+            Thread_pool_ftor_t{&Web_crawler::process_next_page, this}, 
+            num_treads_);
     }
     catch (const std::system_error&) {
         return Crawl_result_t{Crawl_error{crawl_error_thread_creation, "thread creation system error"}};
@@ -70,10 +72,10 @@ void Web_crawler::process_page(const Page_path_t& path) {
     Page_paths_t paths;
     Web_page_reader reader;
     std::string url_path = url_mgr_ptr_->make_full_url(path);
-    // std::cout << "-----------------> Reading page " << url_path << " depth " << path.depth << std::endl;
+    // std::cout << "Reading page " << url_path << " depth " << path.depth << std::endl;
     Read_Results_t results = reader.read_page(url_path);
     if (results.http_code == http_ok) {
-        paths = url_mgr_ptr_->extract_page_paths(results.content, path);
+        paths = url_mgr_ptr_->extract_child_page_paths(results.content, path);
     }
     if (path.depth < max_depth_ and !paths.empty()) {
         url_mgr_ptr_->update_page_paths(paths);        

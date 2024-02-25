@@ -112,7 +112,7 @@ bool Url_mgr::is_child_page(const Url_t& links_domain, const Url_t& links_url_pa
     return is_child;
 }
 
-Page_paths_t Url_mgr::extract_page_paths(const Page_content_t& content, 
+Page_paths_t Url_mgr::extract_child_page_paths(const Page_content_t& content, 
     const Page_path_t& parent_path) const {
     Page_paths_t paths;
     // Use string search to find hrefs instead of regex because regex is painfully slow for large docs
@@ -130,18 +130,12 @@ Page_paths_t Url_mgr::extract_page_paths(const Page_content_t& content,
             end_pos = content.find_first_of("\"#", begin_pos);
             if (end_pos == std::string::npos) break; // Malformed
             if (end_pos > begin_pos) {
-                Url_t url{content, begin_pos, end_pos-begin_pos};
-                // std::cout << "Found links url: " << url << std::endl;
-                Opt_page_path_t opt_path = make_child_path_from_link(url, parent_path);
+                Url_t link{content, begin_pos, end_pos-begin_pos};
+                // std::cout << "Found links url: " << link << std::endl;
+                Opt_page_path_t opt_path = make_child_path_from_link(link, parent_path);
                 if (opt_path) {
                     paths.push_back(*opt_path);
-                    // std::cout << ">>>>>>>>>>>>>>>>>> Adding links path: " << opt_path->path <<
-                    //     ", page: " << opt_path->page << std::endl;
                 }
-                else {
-                    // std::cout << "!!!!!!!!!!!!!!!!!! Page links NOT added " << std::endl;
-                }
-                // std::cout << "---------------------------------------------------" << std::endl;
             }
         }
         begin_pos = end_pos + 1;

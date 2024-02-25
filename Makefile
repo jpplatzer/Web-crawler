@@ -48,6 +48,7 @@ UTEST_LIBS = -lgtest -lpthread
 
 # build binaries in a BIN directory
 BINDIR=bin/
+TESTBINDIR=bin/test/
 
 SRC_CMN = web_crawler.cpp url_mgr.cpp
 MAIN_SRC = main.cpp web_page_reader.cpp
@@ -112,7 +113,7 @@ $(BINDIR)%.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(INCLUDES) $(SYSINCLUDES) -c $<  -o $@
 
 clean:
-	$(RM) $(BINDIR)*.o $(BIN_MAIN) $(BIN_UTESTS)
+	$(RM) $(BINDIR)*.o $(TESTBINDIR)*.o $(BIN_MAIN) $(BIN_UTESTS)
 
 depend: $(MAIN_SRC)
 	makedepend $(INCLUDES) $^

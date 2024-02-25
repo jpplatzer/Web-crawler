@@ -14,35 +14,92 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #include <thread>
 #include <atomic>
-#include <vector>
+#include <deque>
 #include <semaphore>
 #include <numeric>
 
-template <class Fcn_t>
+/// @brief Thread pool runs specified function(s) in the pool's threads
 class Thread_pool {
 public:
-    /// @brief Thread pool runs a shared function in the pool's threads
+    /// @brief Run the shared function specified in the ctor until the function returns false.
     /// @param fcn [in] Function or functor that runs concurrently in the pool's threads. 
     /// The function signature is bool fcn() or bool operator()(). 
     /// The threads continue running the function until it returns false. 
     /// The Thread_pool_ftor class below provide a working example functor.
     /// @param num_threads [in] The number of threads concurrently running in the pool
-    Thread_pool(Fcn_t fcn, int num_threads) 
-        : fcn_(fcn), num_threads_(num_threads), running_statuses_(num_threads) {}
-    /// @brief Run the shared function specified in the ctor until the function returns false.
     /// @throws Can throw a std::system_error when a system error occurs while creating the pool's threads.
-    void run();
+    template <class Fcn_t> requires std::invocable<Fcn_t>
+    void run(Fcn_t fcn, int num_threads) {
+        Fcn_thread_starter<Fcn_t> starter;
+        starter.start_threads(fcn, num_threads, this);
+        wait_for_threads();
+        running_statuses_.clear();
+    }
+
+    /// @brief Run each function in the container of functions/functors in its own thread.
+    /// @param beg [in] The beginning iterator to the container of functions
+    /// The iterators value must be a function or functor that runs concurrently in the pool's threads. 
+    /// The function signature is bool fcn() or bool operator()(). 
+    /// The threads continue running the function until it returns false. 
+    /// The Thread_pool_ftor class below provide a working example functor.
+    /// @param end [in] The ending iterator to the container of functions
+    /// @throws Can throw a std::system_error when a system error occurs while creating the pool's threads.
+    template <class In_iter_t>
+    void run(In_iter_t beg, In_iter_t end) {
+        using category = typename std::iterator_traits<In_iter_t>::iterator_category;
+        static_assert(std::is_base_of_v<std::input_iterator_tag, category>);        
+        Iter_thread_starter<In_iter_t> starter;
+        starter.start_threads(beg, end, this);
+        wait_for_threads();
+        running_statuses_.clear();
+    }
 
 private:
     enum { max_sem_count = 0xfff };
+    using Running_status_t = std::atomic_bool;
+    using Running_statuses_t = std::deque<Running_status_t>;
     using Semaphore_t = std::counting_semaphore<max_sem_count>;
+
+    Running_statuses_t running_statuses_;
+    Semaphore_t finished_sem_{0};
+
+    template <class Fcn_t>
+    struct Fcn_thread_starter {
+    public:
+        void start_threads(Fcn_t& fcn, int num_threads, Thread_pool* tp_ptr) {
+            for (int i = 0; i < num_threads; ++i) {
+                tp_ptr->running_statuses_.emplace_back(true);
+                tp_ptr->start_thread<Fcn_t>(fcn, 
+                    tp_ptr->running_statuses_.back());
+            }
+        }
+    };
+
+    template <class In_iter_t>
+    struct Iter_thread_starter {
+        void start_threads(In_iter_t beg, In_iter_t end, Thread_pool* tp_ptr) {
+            using Fcn_t = typename std::iterator_traits<In_iter_t>::value_type;
+            static_assert(std::is_invocable_v<Fcn_t>);
+            for (int i = 0; beg != end; ++beg, ++i) {
+                tp_ptr->running_statuses_.emplace_back(true);
+                tp_ptr->start_thread<Fcn_t>(*beg, 
+                    tp_ptr->running_statuses_.back());
+            }
+        }
+    };
+
+    template <class Fcn_t>
     class Wrapped_fcn {
     public:
         Wrapped_fcn(Fcn_t& fcn,
             std::atomic_bool& running_status,
             Semaphore_t& finished_sem) 
             : fcn_(fcn), running_status_(running_status), finished_sem_(finished_sem) {}
-        void operator() ();
+        void operator() () {
+            while (running_status_ && fcn_()) {}
+            running_status_ = false;
+            finished_sem_.release();
+        }
     
     private:
         Fcn_t& fcn_;
@@ -50,50 +107,30 @@ private:
         Semaphore_t& finished_sem_;
     };
 
-    Fcn_t fcn_;
-    int num_threads_;
-    std::vector<std::atomic_bool> running_statuses_;
-    Semaphore_t finished_sem_{0};
-
-    void start_thread(int thread_idx);
-    void stop_thread(int thread_idx) {
-        running_statuses_[thread_idx] = false;
-    }
-};
-
-template <class Fcn_t>
-void Thread_pool<Fcn_t>::run() {
-    try {
-        for (int i = 0; i < num_threads_; ++i ) {
-            start_thread(i);
+    template <class Fcn_t>
+    void start_thread(Fcn_t& fcn, Running_status_t& running_status) {
+        Wrapped_fcn wrapped_fcn(fcn, running_status, finished_sem_);
+        try {
+            std::thread t(wrapped_fcn);
+            t.detach();
+        }
+        catch (const std::system_error& e) {
+            stop_threads();
+            throw e;
         }
     }
-    catch (const std::system_error& e) {
-        // thread creation can throw a system_error
-        // in this case, stop all threads and rethrow
-        for (int i = 0; i < num_threads_; ++i ) {
-            stop_thread(i);
+
+    void wait_for_threads() {
+        while (std::accumulate(running_statuses_.begin(), running_statuses_.end(), false)) {
+            finished_sem_.acquire();
         }
-        throw e;
     }
-    while (std::accumulate(running_statuses_.begin(), running_statuses_.end(), false)) {
-        finished_sem_.acquire();
+
+    void stop_threads() {
+        for (auto iter = running_statuses_.begin(); iter != running_statuses_.end(); ++iter) {
+            *iter = false;
+        }
     }
-}
-
-template <class Fcn_t>
-void Thread_pool<Fcn_t>::start_thread(int thread_idx) {
-    running_statuses_[thread_idx] = true;
-    Wrapped_fcn wrapped_fcn(fcn_, running_statuses_[thread_idx], finished_sem_);
-    std::thread t(wrapped_fcn);
-    t.detach();
-}
-
-template <class Fcn_t>
-void Thread_pool<Fcn_t>::Wrapped_fcn::operator() () {
-    while (running_status_ && fcn_()) {}
-    running_status_ = false;
-    finished_sem_.release();
 };
 
 template <class Obj_t>

@@ -59,10 +59,7 @@ public:
     /// @param num_treads [in] Number of crawling threads
     /// @param max_depth [in] Maximum crawling depth
     Web_crawler(int num_treads, int max_depth = unlimited_depth) :
-        num_treads_(num_treads), max_depth_(max_depth), 
-        thread_pool_(
-            Thread_pool_ftor_t{&Web_crawler::process_next_page, this}, 
-            num_treads) {}
+        num_treads_(num_treads), max_depth_(max_depth) {}
 
     /// @brief Crawl the page and its children specified by the URL
     /// @param site_url [in] Site URL to crawl
@@ -81,7 +78,7 @@ private:
     Url_mgr_ptr_t url_mgr_ptr_;
     int num_treads_;
     int max_depth_;
-    Thread_pool<Thread_pool_ftor_t> thread_pool_;
+    Thread_pool thread_pool_;
 
     bool done_processing() {
         return num_threads_waiting_to_proc_ >= num_treads_;

@@ -37,7 +37,7 @@ public:
         return decon_url_.domain;
     }
     Url_t make_full_url(const Page_path_t& path) const;
-    Page_paths_t extract_page_paths(const Page_content_t& content, 
+    Page_paths_t extract_child_page_paths(const Page_content_t& content, 
         const Page_path_t& parent_path) const;
     void update_page_paths(const Page_paths_t& page_paths);
     Opt_page_path_t pop_new_path();
