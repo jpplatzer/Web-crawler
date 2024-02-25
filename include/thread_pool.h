@@ -30,8 +30,7 @@ public:
     /// @throws Can throw a std::system_error when a system error occurs while creating the pool's threads.
     template <class Fcn_t> requires std::invocable<Fcn_t>
     void run(Fcn_t fcn, int num_threads) {
-        Fcn_thread_starter<Fcn_t> starter;
-        starter.start_threads(fcn, num_threads, this);
+        start_threads_from_fcn(fcn, num_threads);
         wait_for_threads();
         running_statuses_.clear();
     }
@@ -48,8 +47,7 @@ public:
     void run(In_iter_t beg, In_iter_t end) {
         using category = typename std::iterator_traits<In_iter_t>::iterator_category;
         static_assert(std::is_base_of_v<std::input_iterator_tag, category>);        
-        Iter_thread_starter<In_iter_t> starter;
-        starter.start_threads(beg, end, this);
+        start_threads_from_iter(beg, end);
         wait_for_threads();
         running_statuses_.clear();
     }
@@ -59,34 +57,6 @@ private:
     using Running_status_t = std::atomic_bool;
     using Running_statuses_t = std::deque<Running_status_t>;
     using Semaphore_t = std::counting_semaphore<max_sem_count>;
-
-    Running_statuses_t running_statuses_;
-    Semaphore_t finished_sem_{0};
-
-    template <class Fcn_t>
-    struct Fcn_thread_starter {
-    public:
-        void start_threads(Fcn_t& fcn, int num_threads, Thread_pool* tp_ptr) {
-            for (int i = 0; i < num_threads; ++i) {
-                tp_ptr->running_statuses_.emplace_back(true);
-                tp_ptr->start_thread<Fcn_t>(fcn, 
-                    tp_ptr->running_statuses_.back());
-            }
-        }
-    };
-
-    template <class In_iter_t>
-    struct Iter_thread_starter {
-        void start_threads(In_iter_t beg, In_iter_t end, Thread_pool* tp_ptr) {
-            using Fcn_t = typename std::iterator_traits<In_iter_t>::value_type;
-            static_assert(std::is_invocable_v<Fcn_t>);
-            for (int i = 0; beg != end; ++beg, ++i) {
-                tp_ptr->running_statuses_.emplace_back(true);
-                tp_ptr->start_thread<Fcn_t>(*beg, 
-                    tp_ptr->running_statuses_.back());
-            }
-        }
-    };
 
     template <class Fcn_t>
     class Wrapped_fcn {
@@ -106,6 +76,27 @@ private:
         std::atomic_bool& running_status_;
         Semaphore_t& finished_sem_;
     };
+
+    Running_statuses_t running_statuses_;
+    Semaphore_t finished_sem_{0};
+
+    template <class Fcn_t>
+    void start_threads_from_fcn(Fcn_t& fcn, int num_threads) {
+        for (int i = 0; i < num_threads; ++i) {
+            running_statuses_.emplace_back(true);
+            start_thread<Fcn_t>(fcn, running_statuses_.back());
+        }
+    }
+
+    template <class In_iter_t>
+    void start_threads_from_iter(In_iter_t beg, In_iter_t end) {
+        using Fcn_t = typename std::iterator_traits<In_iter_t>::value_type;
+        static_assert(std::is_invocable_v<Fcn_t>);
+        for (int i = 0; beg != end; ++beg, ++i) {
+            running_statuses_.emplace_back(true);
+            start_thread<Fcn_t>(*beg, running_statuses_.back());
+        }
+    }
 
     template <class Fcn_t>
     void start_thread(Fcn_t& fcn, Running_status_t& running_status) {
