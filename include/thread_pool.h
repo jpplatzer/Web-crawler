@@ -14,9 +14,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #include <thread>
 #include <atomic>
-#include <deque>
 #include <semaphore>
-#include <numeric>
 
 /// @brief Thread pool runs specified function(s) in the pool's threads
 class Thread_pool {
@@ -31,8 +29,7 @@ public:
     template <class Fcn_t> requires std::invocable<Fcn_t>
     void run(Fcn_t fcn, int num_threads) {
         start_threads_from_fcn(fcn, num_threads);
-        wait_for_threads();
-        running_statuses_.clear();
+        run_threads_to_completion();
     }
 
     /// @brief Run each function in the container of functions/functors in its own thread.
@@ -48,43 +45,21 @@ public:
         using category = typename std::iterator_traits<In_iter_t>::iterator_category;
         static_assert(std::is_base_of_v<std::input_iterator_tag, category>);        
         start_threads_from_iter(beg, end);
-        wait_for_threads();
-        running_statuses_.clear();
+        run_threads_to_completion();
     }
 
 private:
     enum { max_sem_count = 0xfff };
-    using Running_status_t = std::atomic_bool;
-    using Running_statuses_t = std::deque<Running_status_t>;
     using Semaphore_t = std::counting_semaphore<max_sem_count>;
 
-    template <class Fcn_t>
-    class Wrapped_fcn {
-    public:
-        Wrapped_fcn(Fcn_t& fcn,
-            std::atomic_bool& running_status,
-            Semaphore_t& finished_sem) 
-            : fcn_(fcn), running_status_(running_status), finished_sem_(finished_sem) {}
-        void operator() () {
-            while (running_status_ && fcn_()) {}
-            running_status_ = false;
-            finished_sem_.release();
-        }
-    
-    private:
-        Fcn_t& fcn_;
-        std::atomic_bool& running_status_;
-        Semaphore_t& finished_sem_;
-    };
-
-    Running_statuses_t running_statuses_;
+    std::atomic_bool running_enabled_{true};
+    std::atomic_int running_count_{0};
     Semaphore_t finished_sem_{0};
 
     template <class Fcn_t>
     void start_threads_from_fcn(Fcn_t& fcn, int num_threads) {
         for (int i = 0; i < num_threads; ++i) {
-            running_statuses_.emplace_back(true);
-            start_thread<Fcn_t>(fcn, running_statuses_.back());
+            start_thread<Fcn_t>(fcn);
         }
     }
 
@@ -92,34 +67,52 @@ private:
     void start_threads_from_iter(In_iter_t beg, In_iter_t end) {
         using Fcn_t = typename std::iterator_traits<In_iter_t>::value_type;
         static_assert(std::is_invocable_v<Fcn_t>);
-        for (int i = 0; beg != end; ++beg, ++i) {
-            running_statuses_.emplace_back(true);
-            start_thread<Fcn_t>(*beg, running_statuses_.back());
+        for (; beg != end; ++beg) {
+            start_thread<Fcn_t>(*beg);
         }
     }
 
     template <class Fcn_t>
-    void start_thread(Fcn_t& fcn, Running_status_t& running_status) {
-        Wrapped_fcn wrapped_fcn(fcn, running_status, finished_sem_);
+    class Wrapped_fcn {
+    public:
+        Wrapped_fcn(Fcn_t& fcn,
+            std::atomic_bool& running_enabled,
+            std::atomic_int& running_count,
+            Semaphore_t& finished_sem) 
+            : fcn_(fcn), running_enabled_(running_enabled), 
+              running_count_(running_count), finished_sem_(finished_sem) {}
+        void operator() () {
+            while (running_enabled_ && fcn_()) {}
+            --running_count_;
+            finished_sem_.release();
+        }
+    
+    private:
+        Fcn_t& fcn_;
+        std::atomic_bool& running_enabled_;
+        std::atomic_int& running_count_;
+        Semaphore_t& finished_sem_;
+    };
+
+    template <class Fcn_t>
+    void start_thread(Fcn_t& fcn) {
+        Wrapped_fcn wrapped_fcn(fcn, running_enabled_, 
+            running_count_, finished_sem_);
         try {
+            ++running_count_;
             std::thread t(wrapped_fcn);
             t.detach();
         }
         catch (const std::system_error& e) {
-            stop_threads();
+            --running_count_;
+            running_enabled_ = false;
             throw e;
         }
     }
 
-    void wait_for_threads() {
-        while (std::accumulate(running_statuses_.begin(), running_statuses_.end(), false)) {
+    void run_threads_to_completion() {
+        while (running_count_ > 0) {
             finished_sem_.acquire();
-        }
-    }
-
-    void stop_threads() {
-        for (auto iter = running_statuses_.begin(); iter != running_statuses_.end(); ++iter) {
-            *iter = false;
         }
     }
 };

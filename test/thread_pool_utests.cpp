@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <chrono>
 #include <atomic>
-#include <deque>
+#include <forward_list>
 #include <thread_pool.h>
 
 constexpr const int thread_fcn_count_limit{100};
@@ -83,15 +83,15 @@ private:
 
 TEST(Thread_pool, Iterator_Test) {
     constexpr const int num_threads{9};
-    using Separate_fcn_tests_t = std::deque<Separate_fcn_test>;
+    using Separate_fcn_tests_t = std::forward_list<Separate_fcn_test>;
     using Ftor_t = Thread_pool_ftor<Separate_fcn_test>;
-    using Ftors_t = std::deque<Ftor_t>;
+    using Ftors_t = std::forward_list<Ftor_t>;
     Separate_fcn_tests_t separate_fcn_tests;
     Ftors_t ftors;
     for (int i = 0; i < num_threads; ++i) {
-        separate_fcn_tests.emplace_back(i);
-        ftors.emplace_back(&Separate_fcn_test::thread_fcn, 
-            &separate_fcn_tests.back());
+        separate_fcn_tests.emplace_front(i);
+        ftors.emplace_front(&Separate_fcn_test::thread_fcn, 
+            &separate_fcn_tests.front());
     }
     Thread_pool tp;
     tp.run(ftors.begin(), ftors.end());
