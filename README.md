@@ -1,6 +1,6 @@
 # Web-crawler
 
-An example application I developed to peform multi-threaded crawling of a website's child pages. You can use its pluggale processing class to develop you own custom page processing on website pages.
+An example application I developed to peform multi-threaded crawling of a website's child pages. You can use its pluggable processing class to develop you own custom page processing on website pages.
 
 The Thread_pool class in the include directory handles the thread management.
 
